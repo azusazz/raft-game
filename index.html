@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>木筏求生 · H5 白模</title>
+  <style>
+    /* ========== 样式层：手机竖屏全屏、禁止原生手势干扰 ========== */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #061525;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+
+    #game-root {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    #status-bar {
+      flex: 0 0 auto;
+      z-index: 5;
+      padding: 8px 10px 6px;
+      background: linear-gradient(180deg, rgba(4, 16, 32, 0.96), rgba(4, 16, 32, 0.78));
+      color: #e8f4ff;
+      pointer-events: none;
+    }
+
+    #status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+      line-height: 1.3;
+    }
+
+    .stat {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .stat-label {
+      opacity: 0.72;
+      font-size: 11px;
+    }
+
+    .stat-value {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+
+    .stat-value.warn {
+      color: #ff4d4d;
+      animation: blink 0.55s steps(2, end) infinite;
+    }
+
+    .bar {
+      margin-top: 3px;
+      height: 7px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: 4px;
+    }
+
+    #hunger-fill { background: #e39b3d; }
+    #thirst-fill { background: #4db7e8; }
+    #hunger-fill.danger, #thirst-fill.danger { background: #ff4d4d; }
+
+    #danger-hint {
+      min-height: 16px;
+      margin-top: 4px;
+      font-size: 12px;
+      color: #ff8a8a;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    #game-canvas {
+      flex: 1 1 0;
+      min-height: 0;
+      display: block;
+      width: 100%;
+      background: #0a2a4d;
+      touch-action: none;
+    }
+
+    #control-panel {
+      flex: 0 0 auto;
+      z-index: 5;
+      padding: 6px 8px 8px;
+      background: linear-gradient(0deg, rgba(4, 16, 32, 0.98), rgba(4, 16, 32, 0.86));
+    }
+
+    #hint-line {
+      text-align: center;
+      color: #9ec4e6;
+      font-size: 12px;
+      margin-bottom: 6px;
+      min-height: 16px;
+    }
+
+    #button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    @media (min-width: 720px) {
+      #button-row {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    #btn-cancel {
+      grid-column: 1 / -1;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(180, 220, 255, 0.28);
+      background: #16324f;
+      color: #f3f8ff;
+      border-radius: 10px;
+      min-height: 48px;
+      padding: 6px 8px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.25;
+      touch-action: manipulation;
+    }
+
+    button:active { transform: scale(0.98); }
+    button:disabled {
+      opacity: 0.38;
+      filter: grayscale(0.4);
+    }
+
+    button.mode-on {
+      background: #1e5a3a;
+      border-color: #7dffb1;
+    }
+
+    button.danger-btn {
+      background: #5a241f;
+      border-color: rgba(255, 140, 120, 0.45);
+    }
+
+    .cost {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      opacity: 0.82;
+    }
+
+    #shark-warning {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: rgba(180, 0, 0, 0.28);
+      opacity: 0;
+      z-index: 4;
+    }
+
+    #game-over {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(3, 8, 16, 0.88);
+      z-index: 20;
+      padding: 24px;
+    }
+
+    #game-over.show { display: flex; }
+
+    .over-card {
+      width: min(360px, 100%);
+      background: #102033;
+      border: 1px solid rgba(180, 220, 255, 0.25);
+      border-radius: 16px;
+      padding: 22px 18px;
+      color: #eef6ff;
+      text-align: center;
+    }
+
+    .over-card h2 {
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+
+    .over-card p {
+      margin: 8px 0;
+      font-size: 15px;
+    }
+
+    .record-new { color: #ffe08a; font-weight: 800; }
+
+    #restart-button {
+      width: 100%;
+      margin-top: 16px;
+      background: #2a6cad;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0.25; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-root">
+    <!-- 顶部状态栏：数据只读展示，由渲染层每帧同步 -->
+    <header id="status-bar">
+      <div id="status-row">
+        <div class="stat">
+          <div class="stat-label">木材</div>
+          <div class="stat-value" id="wood-value">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">塑料</div>
+          <div class="stat-value" id="plastic-value">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">饱食度</div>
+          <div class="stat-value" id="hunger-value">100</div>
+          <div class="bar"><span id="hunger-fill"></span></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">水分</div>
+          <div class="stat-value" id="thirst-value">100</div>
+          <div class="bar"><span id="thirst-fill"></span></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">生存时间</div>
+          <div class="stat-value" id="time-value">00:00</div>
+        </div>
+      </div>
+      <div id="danger-hint"></div>
+    </header>
+
+    <canvas id="game-canvas"></canvas>
+    <div id="shark-warning"></div>
+
+    <!-- 底部操作面板：建造、修复、取消选位 -->
+    <footer id="control-panel">
+      <div id="hint-line">点木板移动 · 点海面抛钩 · 预判漂流物提前量</div>
+      <div id="button-row">
+        <button id="btn-expand" type="button">
+          扩建木筏
+          <span class="cost">木材2 · 塑料2</span>
+        </button>
+        <button id="btn-purifier" type="button">
+          简易净水器
+          <span class="cost">木材3 · 塑料1</span>
+        </button>
+        <button id="btn-spear" type="button">
+          防卫长矛
+          <span class="cost">木材4 · 塑料2</span>
+        </button>
+        <button id="btn-repair" type="button">
+          修复木板
+          <span class="cost">木材1 · 塑料1 · 恢复50HP</span>
+        </button>
+        <button id="btn-cancel" class="danger-btn" type="button" hidden>取消选位</button>
+      </div>
+    </footer>
+
+    <section id="game-over">
+      <div class="over-card">
+        <h2>游戏结束</h2>
+        <p id="over-reason"></p>
+        <p>本次生存：<strong id="over-time"></strong></p>
+        <p>历史最高：<strong id="over-best"></strong></p>
+        <p id="over-record"></p>
+        <button id="restart-button" type="button">重新开始</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    /* ========================================================================
+       数据层：配置常量、存档键、本局状态。后续拆文件时整段可独立为 data.js
+       ======================================================================== */
+
+    const 游戏配置 = {
+      格子边长: 56,
+      木板最大生命: 100,
+      初始木材: 4,
+      初始塑料: 4,
+      饱食每秒下降: 0.15,
+      水分每秒下降: 0.25,
+      净水器水分倍率: 0.4,
+      玩家移动速度: 240,
+      钩索飞行速度: 420,
+      钩头半径: 10,
+      资源边长: 22,
+      资源下落速度最小值: 78,
+      资源下落速度最大值: 118,
+      资源生成间隔: 1.35,
+      场上资源上限: 8,
+      鲨鱼间隔秒: 15,
+      鲨鱼移动速度: 190,
+      鲨鱼撕咬每秒伤害: 25,
+      鲨鱼体型: 34,
+      无长矛驱赶距离: 70,
+      长矛防御半径: 60,
+      修复锁定秒: 1.15,
+      修复回复生命: 50,
+      扩建消耗: { 木材: 2, 塑料: 2 },
+      净水器消耗: { 木材: 3, 塑料: 1 },
+      长矛消耗: { 木材: 4, 塑料: 2 },
+      修复消耗: { 木材: 1, 塑料: 1 },
+      警告持续秒: 0.85,
+      最高纪录键名: "raftH5_bestSurvivalSeconds"
+    };
+
+    const 方向四邻 = [
+      { x: 0, y: -1 },
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+      { x: -1, y: 0 }
+    ];
+
+    let 本局状态 = null;
+    let 上一帧时间戳 = 0;
+    let 画布 = null;
+    let 画笔 = null;
+    let 画面宽度 = 0;
+    let 画面高度 = 0;
+
+    const 界面节点 = {};
+
+    function 读取最高纪录() {
+      const 原始值 = localStorage.getItem(游戏配置.最高纪录键名);
+      const 数值 = parseFloat(原始值 || "0");
+      return Number.isFinite(数值) ? 数值 : 0;
+    }
+
+    function 写入最高纪录(秒数) {
+      localStorage.setItem(游戏配置.最高纪录键名, String(秒数));
+    }
+
+    function 创建初始木板() {
+      return [
+        { 格子x: 0, 格子y: 0, 生命: 游戏配置.木板最大生命 },
+        { 格子x: 1, 格子y: 0, 生命: 游戏配置.木板最大生命 },
+        { 格子x: 0, 格子y: 1, 生命: 游戏配置.木板最大生命 },
+        { 格子x: 1, 格子y: 1, 生命: 游戏配置.木板最大生命 }
+      ];
+    }
+
+    function 创建本局状态() {
+      return {
+        进行中: true,
+        生存秒数: 0,
+        木材: 游戏配置.初始木材,
+        塑料: 游戏配置.初始塑料,
+        饱食度: 100,
+        水分: 100,
+        已建净水器: false,
+        已建长矛: false,
+        木板列表: 创建初始木板(),
+        玩家: {
+          格子x: 0,
+          格子y: 0,
+          像素x: 0,
+          像素y: 0,
+          正在移动: false,
+          起点x: 0,
+          起点y: 0,
+          终点格子x: 0,
+          终点格子y: 0,
+          正在修复: false,
+          修复剩余秒: 0,
+          修复目标: null
+        },
+        钩索: {
+          激活: false,
+          阶段: "飞出",
+          钩头x: 0,
+          钩头y: 0,
+          目标x: 0,
+          目标y: 0,
+          已收集: false
+        },
+        漂流物列表: [],
+        生成计时: 0.4,
+        鲨鱼: {
+          状态: "等待",
+          像素x: 0,
+          像素y: 0,
+          目标木板: null,
+          冷却剩余: 游戏配置.鲨鱼间隔秒
+        },
+        操作模式: "正常",
+        警告剩余: 0,
+        结束原因: "",
+        漂浮文字列表: []
+      };
+    }
+
+    /* ========================================================================
+       逻辑层：坐标、碰撞、建造合法性、鲨鱼状态机、输入与主更新
+       ======================================================================== */
+
+    function 查找木板(格子x, 格子y) {
+      return 本局状态.木板列表.find(function (木板) {
+        return 木板.格子x === 格子x && 木板.格子y === 格子y;
+      }) || null;
+    }
+
+    function 木板键(格子x, 格子y) {
+      return 格子x + "," + 格子y;
+    }
+
+    function 计算木筏包围盒() {
+      const 列表 = 本局状态.木板列表;
+      let 最小x = 列表[0].格子x;
+      let 最大x = 列表[0].格子x;
+      let 最小y = 列表[0].格子y;
+      let 最大y = 列表[0].格子y;
+      for (let i = 1; i < 列表.length; i += 1) {
+        最小x = Math.min(最小x, 列表[i].格子x);
+        最大x = Math.max(最大x, 列表[i].格子x);
+        最小y = Math.min(最小y, 列表[i].格子y);
+        最大y = Math.max(最大y, 列表[i].格子y);
+      }
+      return { 最小x: 最小x, 最大x: 最大x, 最小y: 最小y, 最大y: 最大y };
+    }
+
+    function 格子中心屏幕坐标(格子x, 格子y) {
+      const 包围盒 = 计算木筏包围盒();
+      const 中心格子x = (包围盒.最小x + 包围盒.最大x) / 2;
+      const 中心格子y = (包围盒.最小y + 包围盒.最大y) / 2;
+      return {
+        x: 画面宽度 / 2 + (格子x - 中心格子x) * 游戏配置.格子边长,
+        y: 画面高度 / 2 + (格子y - 中心格子y) * 游戏配置.格子边长
+      };
+    }
+
+    function 点到木板距离平方(点x, 点y, 木板) {
+      const 中心 = 格子中心屏幕坐标(木板.格子x, 木板.格子y);
+      const 半边 = 游戏配置.格子边长 / 2;
+      const 最近x = Math.max(中心.x - 半边, Math.min(点x, 中心.x + 半边));
+      const 最近y = Math.max(中心.y - 半边, Math.min(点y, 中心.y + 半边));
+      const dx = 点x - 最近x;
+      const dy = 点y - 最近y;
+      return dx * dx + dy * dy;
+    }
+
+    function 点击命中木板(点x, 点y) {
+      const 半边 = 游戏配置.格子边长 / 2;
+      for (let i = 0; i < 本局状态.木板列表.length; i += 1) {
+        const 木板 = 本局状态.木板列表[i];
+        const 中心 = 格子中心屏幕坐标(木板.格子x, 木板.格子y);
+        if (Math.abs(点x - 中心.x) <= 半边 && Math.abs(点y - 中心.y) <= 半边) {
+          return 木板;
+        }
+      }
+      return null;
+    }
+
+    function 收集合法扩建空位() {
+      const 占用 = {};
+      本局状态.木板列表.forEach(function (木板) {
+        占用[木板键(木板.格子x, 木板.格子y)] = true;
+      });
+      const 空位映射 = {};
+      本局状态.木板列表.forEach(function (木板) {
+        方向四邻.forEach(function (方向) {
+          const x = 木板.格子x + 方向.x;
+          const y = 木板.格子y + 方向.y;
+          const 键 = 木板键(x, y);
+          if (!占用[键]) {
+            空位映射[键] = { 格子x: x, 格子y: y };
+          }
+        });
+      });
+      return Object.keys(空位映射).map(function (键) {
+        return 空位映射[键];
+      });
+    }
+
+    function 资源是否足够(消耗) {
+      return 本局状态.木材 >= 消耗.木材 && 本局状态.塑料 >= 消耗.塑料;
+    }
+
+    function 扣除资源(消耗) {
+      本局状态.木材 -= 消耗.木材;
+      本局状态.塑料 -= 消耗.塑料;
+    }
+
+    function 玩家是否僵直() {
+      return 本局状态.钩索.激活 || 本局状态.玩家.正在修复;
+    }
+
+    function 添加漂浮文字(文本, x, y, 颜色) {
+      本局状态.漂浮文字列表.push({
+        文本: 文本,
+        x: x,
+        y: y,
+        颜色: 颜色,
+        剩余: 0.9
+      });
+    }
+
+    function 同步玩家像素到当前格() {
+      const 中心 = 格子中心屏幕坐标(本局状态.玩家.格子x, 本局状态.玩家.格子y);
+      if (!本局状态.玩家.正在移动) {
+        本局状态.玩家.像素x = 中心.x;
+        本局状态.玩家.像素y = 中心.y;
+      }
+    }
+
+    function 开始移动到木板(木板) {
+      if (!本局状态.进行中) return;
+      if (玩家是否僵直()) return;
+      if (本局状态.操作模式 !== "正常") return;
+      if (木板.格子x === 本局状态.玩家.格子x && 木板.格子y === 本局状态.玩家.格子y && !本局状态.玩家.正在移动) {
+        return;
+      }
+      const 起点 = { x: 本局状态.玩家.像素x, y: 本局状态.玩家.像素y };
+      本局状态.玩家.正在移动 = true;
+      本局状态.玩家.起点x = 起点.x;
+      本局状态.玩家.起点y = 起点.y;
+      本局状态.玩家.终点格子x = 木板.格子x;
+      本局状态.玩家.终点格子y = 木板.格子y;
+    }
+
+    function 发射钩索(目标x, 目标y) {
+      if (!本局状态.进行中) return;
+      if (玩家是否僵直()) return;
+      if (本局状态.玩家.正在移动) return;
+      if (本局状态.操作模式 !== "正常") return;
+      本局状态.钩索.激活 = true;
+      本局状态.钩索.阶段 = "飞出";
+      本局状态.钩索.钩头x = 本局状态.玩家.像素x;
+      本局状态.钩索.钩头y = 本局状态.玩家.像素y;
+      本局状态.钩索.目标x = 目标x;
+      本局状态.钩索.目标y = 目标y;
+      本局状态.钩索.已收集 = false;
+    }
+
+    function 钩索与资源碰撞(资源) {
+      const 半边 = 游戏配置.资源边长 / 2;
+      const 最近x = Math.max(资源.x - 半边, Math.min(本局状态.钩索.钩头x, 资源.x + 半边));
+      const 最近y = Math.max(资源.y - 半边, Math.min(本局状态.钩索.钩头y, 资源.y + 半边));
+      const dx = 本局状态.钩索.钩头x - 最近x;
+      const dy = 本局状态.钩索.钩头y - 最近y;
+      const 半径 = 游戏配置.钩头半径;
+      return dx * dx + dy * dy <= 半径 * 半径;
+    }
+
+    function 生成漂流物() {
+      if (本局状态.漂流物列表.length >= 游戏配置.场上资源上限) return;
+      const 边距 = 28;
+      const 类型 = Math.random() < 0.5 ? "木材" : "塑料";
+      本局状态.漂流物列表.push({
+        类型: 类型,
+        x: 边距 + Math.random() * Math.max(40, 画面宽度 - 边距 * 2),
+        y: -游戏配置.资源边长,
+        速度: 游戏配置.资源下落速度最小值 + Math.random() * (游戏配置.资源下落速度最大值 - 游戏配置.资源下落速度最小值)
+      });
+    }
+
+    function 更新漂流物(间隔秒) {
+      本局状态.生成计时 -= 间隔秒;
+      if (本局状态.生成计时 <= 0) {
+        生成漂流物();
+        本局状态.生成计时 = 游戏配置.资源生成间隔 + Math.random() * 0.45;
+      }
+      本局状态.漂流物列表 = 本局状态.漂流物列表.filter(function (资源) {
+        资源.y += 资源.速度 * 间隔秒;
+        return 资源.y < 画面高度 + 40;
+      });
+    }
+
+    function 更新钩索(间隔秒) {
+      const 钩索 = 本局状态.钩索;
+      if (!钩索.激活) return;
+      const 玩家 = 本局状态.玩家;
+      if (钩索.阶段 === "飞出") {
+        const dx = 钩索.目标x - 钩索.钩头x;
+        const dy = 钩索.目标y - 钩索.钩头y;
+        const 距离 = Math.hypot(dx, dy);
+        const 步长 = 游戏配置.钩索飞行速度 * 间隔秒;
+        if (距离 <= 步长) {
+          钩索.钩头x = 钩索.目标x;
+          钩索.钩头y = 钩索.目标y;
+          钩索.阶段 = "收回";
+        } else {
+          钩索.钩头x += (dx / 距离) * 步长;
+          钩索.钩头y += (dy / 距离) * 步长;
+        }
+      } else {
+        const dx = 玩家.像素x - 钩索.钩头x;
+        const dy = 玩家.像素y - 钩索.钩头y;
+        const 距离 = Math.hypot(dx, dy);
+        const 步长 = 游戏配置.钩索飞行速度 * 间隔秒;
+        if (距离 <= 步长) {
+          钩索.钩头x = 玩家.像素x;
+          钩索.钩头y = 玩家.像素y;
+          钩索.激活 = false;
+        } else {
+          钩索.钩头x += (dx / 距离) * 步长;
+          钩索.钩头y += (dy / 距离) * 步长;
+        }
+      }
+
+      if (钩索.已收集) return;
+      for (let i = 本局状态.漂流物列表.length - 1; i >= 0; i -= 1) {
+        const 资源 = 本局状态.漂流物列表[i];
+        if (钩索与资源碰撞(资源)) {
+          if (资源.类型 === "木材") {
+            本局状态.木材 += 1;
+            添加漂浮文字("+1 木材", 资源.x, 资源.y, "#d49a5a");
+          } else {
+            本局状态.塑料 += 1;
+            添加漂浮文字("+1 塑料", 资源.x, 资源.y, "#c9d4de");
+          }
+          本局状态.漂流物列表.splice(i, 1);
+          钩索.已收集 = true;
+          钩索.阶段 = "收回";
+          break;
+        }
+      }
+    }
+
+    function 更新玩家移动(间隔秒) {
+      const 玩家 = 本局状态.玩家;
+      if (玩家.正在修复) {
+        玩家.修复剩余秒 -= 间隔秒;
+        if (玩家.修复剩余秒 <= 0) {
+          const 目标 = 玩家.修复目标;
+          if (目标 && 本局状态.木板列表.indexOf(目标) !== -1) {
+            目标.生命 = Math.min(游戏配置.木板最大生命, 目标.生命 + 游戏配置.修复回复生命);
+            添加漂浮文字("修复 +50", 玩家.像素x, 玩家.像素y - 24, "#9dffc2");
+          }
+          玩家.正在修复 = false;
+          玩家.修复目标 = null;
+        }
+      }
+
+      if (!玩家.正在移动) {
+        同步玩家像素到当前格();
+        return;
+      }
+      const 终点 = 格子中心屏幕坐标(玩家.终点格子x, 玩家.终点格子y);
+      const dx = 终点.x - 玩家.像素x;
+      const dy = 终点.y - 玩家.像素y;
+      const 距离 = Math.hypot(dx, dy);
+      const 步长 = 游戏配置.玩家移动速度 * 间隔秒;
+      if (距离 <= 步长) {
+        玩家.像素x = 终点.x;
+        玩家.像素y = 终点.y;
+        玩家.格子x = 玩家.终点格子x;
+        玩家.格子y = 玩家.终点格子y;
+        玩家.正在移动 = false;
+      } else {
+        玩家.像素x += (dx / 距离) * 步长;
+        玩家.像素y += (dy / 距离) * 步长;
+      }
+    }
+
+    function 玩家所在木板是否仍在() {
+      return !!查找木板(本局状态.玩家.格子x, 本局状态.玩家.格子y);
+    }
+
+    function 将玩家转移到最近木板() {
+      if (本局状态.木板列表.length === 0) return;
+      let 最近 = 本局状态.木板列表[0];
+      let 最近距离 = Infinity;
+      本局状态.木板列表.forEach(function (木板) {
+        const dx = 木板.格子x - 本局状态.玩家.格子x;
+        const dy = 木板.格子y - 本局状态.玩家.格子y;
+        const 距离 = dx * dx + dy * dy;
+        if (距离 < 最近距离) {
+          最近距离 = 距离;
+          最近 = 木板;
+        }
+      });
+      本局状态.玩家.格子x = 最近.格子x;
+      本局状态.玩家.格子y = 最近.格子y;
+      本局状态.玩家.正在移动 = false;
+      同步玩家像素到当前格();
+    }
+
+    function 摧毁木板(木板) {
+      const 序号 = 本局状态.木板列表.indexOf(木板);
+      if (序号 === -1) return;
+      const 中心 = 格子中心屏幕坐标(木板.格子x, 木板.格子y);
+      添加漂浮文字("木板碎裂", 中心.x, 中心.y, "#ffb3b3");
+      本局状态.木板列表.splice(序号, 1);
+      if (本局状态.鲨鱼.目标木板 === 木板) {
+        本局状态.鲨鱼.目标木板 = null;
+      }
+      if (本局状态.木板列表.length === 0) {
+        结束游戏("所有木板被摧毁，木筏沉没。");
+        return;
+      }
+      if (!玩家所在木板是否仍在()) {
+        将玩家转移到最近木板();
+      }
+    }
+
+    function 鲨鱼进入场外起点() {
+      const 侧边 = Math.random() < 0.5 ? -40 : 画面宽度 + 40;
+      return { x: 侧边, y: 40 + Math.random() * Math.max(80, 画面高度 * 0.45) };
+    }
+
+    function 启动鲨鱼突袭() {
+      if (本局状态.木板列表.length === 0) return;
+      const 目标 = 本局状态.木板列表[Math.floor(Math.random() * 本局状态.木板列表.length)];
+      const 入口 = 鲨鱼进入场外起点();
+      本局状态.警告剩余 = 游戏配置.警告持续秒;
+      本局状态.鲨鱼.状态 = "接近";
+      本局状态.鲨鱼.目标木板 = 目标;
+      本局状态.鲨鱼.像素x = 入口.x;
+      本局状态.鲨鱼.像素y = 入口.y;
+    }
+
+    function 鲨鱼撕咬锚点(木板) {
+      const 中心 = 格子中心屏幕坐标(木板.格子x, 木板.格子y);
+      return { x: 中心.x + 游戏配置.格子边长 * 0.62, y: 中心.y };
+    }
+
+    function 尝试驱赶鲨鱼() {
+      const 鲨鱼 = 本局状态.鲨鱼;
+      if (鲨鱼.状态 !== "接近" && 鲨鱼.状态 !== "撕咬") return;
+      if (玩家是否僵直()) return;
+      const dx = 鲨鱼.像素x - 本局状态.玩家.像素x;
+      const dy = 鲨鱼.像素y - 本局状态.玩家.像素y;
+      const 距离 = Math.hypot(dx, dy);
+      if (本局状态.已建长矛 && 距离 <= 游戏配置.长矛防御半径) {
+        鲨鱼撤退("长矛击退");
+        return;
+      }
+      if (距离 <= 游戏配置.无长矛驱赶距离) {
+        鲨鱼撤退("徒手驱赶");
+      }
+    }
+
+    function 鲨鱼撤退(原因) {
+      本局状态.鲨鱼.状态 = "撤退";
+      本局状态.鲨鱼.目标木板 = null;
+      添加漂浮文字(原因, 本局状态.鲨鱼.像素x, 本局状态.鲨鱼.像素y - 18, "#ffd4d4");
+    }
+
+    function 更新鲨鱼(间隔秒) {
+      const 鲨鱼 = 本局状态.鲨鱼;
+      if (鲨鱼.状态 === "等待") {
+        鲨鱼.冷却剩余 -= 间隔秒;
+        if (鲨鱼.冷却剩余 <= 0) {
+          启动鲨鱼突袭();
+        }
+        return;
+      }
+
+      if (鲨鱼.状态 === "接近") {
+        if (!鲨鱼.目标木板 || 本局状态.木板列表.indexOf(鲨鱼.目标木板) === -1) {
+          if (本局状态.木板列表.length === 0) return;
+          鲨鱼.目标木板 = 本局状态.木板列表[Math.floor(Math.random() * 本局状态.木板列表.length)];
+        }
+        const 锚点 = 鲨鱼撕咬锚点(鲨鱼.目标木板);
+        const dx = 锚点.x - 鲨鱼.像素x;
+        const dy = 锚点.y - 鲨鱼.像素y;
+        const 距离 = Math.hypot(dx, dy);
+        const 步长 = 游戏配置.鲨鱼移动速度 * 间隔秒;
+        if (距离 <= 步长) {
+          鲨鱼.像素x = 锚点.x;
+          鲨鱼.像素y = 锚点.y;
+          鲨鱼.状态 = "撕咬";
+        } else {
+          鲨鱼.像素x += (dx / 距离) * 步长;
+          鲨鱼.像素y += (dy / 距离) * 步长;
+        }
+        尝试驱赶鲨鱼();
+        return;
+      }
+
+      if (鲨鱼.状态 === "撕咬") {
+        if (!鲨鱼.目标木板 || 本局状态.木板列表.indexOf(鲨鱼.目标木板) === -1) {
+          鲨鱼撤退("目标消失");
+          return;
+        }
+        const 锚点 = 鲨鱼撕咬锚点(鲨鱼.目标木板);
+        鲨鱼.像素x = 锚点.x;
+        鲨鱼.像素y = 锚点.y;
+        鲨鱼.目标木板.生命 -= 游戏配置.鲨鱼撕咬每秒伤害 * 间隔秒;
+        if (鲨鱼.目标木板.生命 <= 0) {
+          摧毁木板(鲨鱼.目标木板);
+          if (本局状态.进行中) {
+            鲨鱼撤退("木板被咬碎");
+          }
+          return;
+        }
+        尝试驱赶鲨鱼();
+        return;
+      }
+
+      if (鲨鱼.状态 === "撤退") {
+        鲨鱼.像素x += 220 * 间隔秒;
+        鲨鱼.像素y -= 90 * 间隔秒;
+        if (鲨鱼.像素x > 画面宽度 + 80 || 鲨鱼.像素y < -80) {
+          鲨鱼.状态 = "等待";
+          鲨鱼.冷却剩余 = 游戏配置.鲨鱼间隔秒;
+        }
+      }
+    }
+
+    function 更新生存(间隔秒) {
+      本局状态.饱食度 -= 游戏配置.饱食每秒下降 * 间隔秒;
+      const 水分倍率 = 本局状态.已建净水器 ? 游戏配置.净水器水分倍率 : 1;
+      本局状态.水分 -= 游戏配置.水分每秒下降 * 水分倍率 * 间隔秒;
+      if (本局状态.饱食度 <= 0) {
+        本局状态.饱食度 = 0;
+        结束游戏("饱食度归零，你倒下了。");
+        return;
+      }
+      if (本局状态.水分 <= 0) {
+        本局状态.水分 = 0;
+        结束游戏("水分归零，你倒下了。");
+      }
+    }
+
+    function 更新漂浮文字(间隔秒) {
+      本局状态.漂浮文字列表 = 本局状态.漂浮文字列表.filter(function (文字) {
+        文字.剩余 -= 间隔秒;
+        文字.y -= 28 * 间隔秒;
+        return 文字.剩余 > 0;
+      });
+    }
+
+    function 结束游戏(原因) {
+      if (!本局状态.进行中) return;
+      本局状态.进行中 = false;
+      本局状态.结束原因 = 原因;
+      本局状态.钩索.激活 = false;
+      本局状态.操作模式 = "正常";
+      const 本次 = 本局状态.生存秒数;
+      const 历史 = 读取最高纪录();
+      const 刷新 = 本次 > 历史;
+      if (刷新) {
+        写入最高纪录(本次);
+      }
+      界面节点.结束层.classList.add("show");
+      界面节点.结束原因.textContent = 原因;
+      界面节点.结束时间.textContent = 格式化时间(本次);
+      界面节点.结束最高.textContent = 格式化时间(刷新 ? 本次 : 历史);
+      界面节点.结束纪录.textContent = 刷新 ? "新纪录！" : "未刷新纪录";
+      界面节点.结束纪录.className = 刷新 ? "record-new" : "";
+    }
+
+    function 重置本局() {
+      本局状态 = 创建本局状态();
+      界面节点.结束层.classList.remove("show");
+      本局状态.操作模式 = "正常";
+      调整画布尺寸();
+      同步玩家像素到当前格();
+    }
+
+    function 进入扩建模式() {
+      if (!本局状态.进行中 || 玩家是否僵直() || 本局状态.玩家.正在移动) return;
+      if (!资源是否足够(游戏配置.扩建消耗)) return;
+      本局状态.操作模式 = 本局状态.操作模式 === "扩建" ? "正常" : "扩建";
+    }
+
+    function 进入修复模式() {
+      if (!本局状态.进行中 || 玩家是否僵直() || 本局状态.玩家.正在移动) return;
+      if (!资源是否足够(游戏配置.修复消耗)) return;
+      const 有受损 = 本局状态.木板列表.some(function (木板) {
+        return 木板.生命 < 游戏配置.木板最大生命;
+      });
+      if (!有受损) return;
+      本局状态.操作模式 = 本局状态.操作模式 === "修复" ? "正常" : "修复";
+    }
+
+    function 建造净水器() {
+      if (!本局状态.进行中 || 玩家是否僵直() || 本局状态.玩家.正在移动) return;
+      if (本局状态.已建净水器) return;
+      if (本局状态.操作模式 !== "正常") return;
+      if (!资源是否足够(游戏配置.净水器消耗)) return;
+      扣除资源(游戏配置.净水器消耗);
+      本局状态.已建净水器 = true;
+      添加漂浮文字("净水器启用", 本局状态.玩家.像素x, 本局状态.玩家.像素y - 30, "#dbefff");
+    }
+
+    function 建造长矛() {
+      if (!本局状态.进行中 || 玩家是否僵直() || 本局状态.玩家.正在移动) return;
+      if (本局状态.已建长矛) return;
+      if (本局状态.操作模式 !== "正常") return;
+      if (!资源是否足够(游戏配置.长矛消耗)) return;
+      扣除资源(游戏配置.长矛消耗);
+      本局状态.已建长矛 = true;
+      添加漂浮文字("长矛装备", 本局状态.玩家.像素x, 本局状态.玩家.像素y - 30, "#f4f7ff");
+    }
+
+    function 在空位扩建(空位) {
+      if (!资源是否足够(游戏配置.扩建消耗)) {
+        本局状态.操作模式 = "正常";
+        return;
+      }
+      扣除资源(游戏配置.扩建消耗);
+      本局状态.木板列表.push({
+        格子x: 空位.格子x,
+        格子y: 空位.格子y,
+        生命: 游戏配置.木板最大生命
+      });
+      本局状态.操作模式 = "正常";
+      const 中心 = 格子中心屏幕坐标(空位.格子x, 空位.格子y);
+      添加漂浮文字("扩建", 中心.x, 中心.y, "#b6ffcf");
+    }
+
+    function 开始修复木板(木板) {
+      if (木板.生命 >= 游戏配置.木板最大生命) return;
+      if (!资源是否足够(游戏配置.修复消耗)) {
+        本局状态.操作模式 = "正常";
+        return;
+      }
+      扣除资源(游戏配置.修复消耗);
+      本局状态.操作模式 = "正常";
+      本局状态.玩家.正在修复 = true;
+      本局状态.玩家.修复剩余秒 = 游戏配置.修复锁定秒;
+      本局状态.玩家.修复目标 = 木板;
+      本局状态.玩家.正在移动 = false;
+    }
+
+    function 处理画布点击(点x, 点y) {
+      if (!本局状态.进行中) return;
+
+      if (本局状态.操作模式 === "扩建") {
+        const 合法空位 = 收集合法扩建空位();
+        const 半边 = 游戏配置.格子边长 / 2;
+        for (let i = 0; i < 合法空位.length; i += 1) {
+          const 空位 = 合法空位[i];
+          const 中心 = 格子中心屏幕坐标(空位.格子x, 空位.格子y);
+          if (Math.abs(点x - 中心.x) <= 半边 && Math.abs(点y - 中心.y) <= 半边) {
+            在空位扩建(空位);
+            return;
+          }
+        }
+        return;
+      }
+
+      if (本局状态.操作模式 === "修复") {
+        const 木板 = 点击命中木板(点x, 点y);
+        if (木板) {
+          开始修复木板(木板);
+        }
+        return;
+      }
+
+      const 点中木板 = 点击命中木板(点x, 点y);
+      if (点中木板) {
+        开始移动到木板(点中木板);
+        return;
+      }
+      发射钩索(点x, 点y);
+    }
+
+    function 更新一帧(间隔秒) {
+      if (!本局状态.进行中) {
+        刷新界面();
+        return;
+      }
+      本局状态.生存秒数 += 间隔秒;
+      if (本局状态.警告剩余 > 0) {
+        本局状态.警告剩余 -= 间隔秒;
+      }
+      更新生存(间隔秒);
+      if (!本局状态.进行中) {
+        刷新界面();
+        return;
+      }
+      更新玩家移动(间隔秒);
+      更新漂流物(间隔秒);
+      更新钩索(间隔秒);
+      更新鲨鱼(间隔秒);
+      更新漂浮文字(间隔秒);
+      刷新界面();
+    }
+
+    /* ========================================================================
+       渲染层：Canvas 白模绘制 + DOM 状态栏/按钮同步
+       ======================================================================== */
+
+    function 格式化时间(秒数) {
+      const 总秒 = Math.floor(秒数);
+      const 分 = Math.floor(总秒 / 60);
+      const 秒 = 总秒 % 60;
+      return (分 < 10 ? "0" : "") + 分 + ":" + (秒 < 10 ? "0" : "") + 秒;
+    }
+
+    function 调整画布尺寸() {
+      const 矩形 = 画布.getBoundingClientRect();
+      画面宽度 = Math.max(1, 矩形.width);
+      画面高度 = Math.max(1, 矩形.height);
+      const 像素比 = Math.min(window.devicePixelRatio || 1, 2);
+      画布.width = Math.floor(画面宽度 * 像素比);
+      画布.height = Math.floor(画面高度 * 像素比);
+      画笔.setTransform(像素比, 0, 0, 像素比, 0, 0);
+      if (本局状态) {
+        同步玩家像素到当前格();
+      }
+    }
+
+    function 绘制波浪(时间秒) {
+      画笔.fillStyle = "#0a2a4d";
+      画笔.fillRect(0, 0, 画面宽度, 画面高度);
+      画笔.strokeStyle = "rgba(126, 196, 232, 0.28)";
+      画笔.lineWidth = 1.5;
+      for (let 行 = 0; 行 < 9; 行 += 1) {
+        画笔.beginPath();
+        const 基线 = 30 + 行 * (画面高度 / 8.5);
+        for (let x = 0; x <= 画面宽度; x += 8) {
+          const y = 基线 + Math.sin(x * 0.02 + 时间秒 * 1.6 + 行) * 5;
+          if (x === 0) 画笔.moveTo(x, y);
+          else 画笔.lineTo(x, y);
+        }
+        画笔.stroke();
+      }
+    }
+
+    function 绘制木筏() {
+      const 半边 = 游戏配置.格子边长 / 2 - 2;
+      本局状态.木板列表.forEach(function (木板) {
+        const 中心 = 格子中心屏幕坐标(木板.格子x, 木板.格子y);
+        const 生命比例 = Math.max(0, 木板.生命 / 游戏配置.木板最大生命);
+        const 破损加深 = Math.floor(40 * (1 - 生命比例));
+        画笔.fillStyle = "rgb(" + (176 - 破损加深) + "," + (126 - 破损加深) + "," + (74 - 破损加深 / 2) + ")";
+        画笔.strokeStyle = "#6b4a2b";
+        画笔.lineWidth = 2;
+        画笔.fillRect(中心.x - 半边, 中心.y - 半边, 半边 * 2, 半边 * 2);
+        画笔.strokeRect(中心.x - 半边, 中心.y - 半边, 半边 * 2, 半边 * 2);
+        画笔.fillStyle = "rgba(0,0,0,0.35)";
+        画笔.fillRect(中心.x - 半边 + 4, 中心.y + 半边 - 10, 半边 * 2 - 8, 5);
+        画笔.fillStyle = 生命比例 > 0.45 ? "#7dff9a" : 生命比例 > 0.2 ? "#ffd56a" : "#ff5d5d";
+        画笔.fillRect(中心.x - 半边 + 4, 中心.y + 半边 - 10, (半边 * 2 - 8) * 生命比例, 5);
+        if (本局状态.鲨鱼.目标木板 === 木板 && (本局状态.鲨鱼.状态 === "接近" || 本局状态.鲨鱼.状态 === "撕咬")) {
+          画笔.strokeStyle = "rgba(255,70,70,0.9)";
+          画笔.lineWidth = 3;
+          画笔.strokeRect(中心.x - 半边 - 2, 中心.y - 半边 - 2, 半边 * 2 + 4, 半边 * 2 + 4);
+        }
+      });
+
+      if (本局状态.已建净水器 && 本局状态.木板列表.length > 0) {
+        const 包围盒 = 计算木筏包围盒();
+        const 中心 = 格子中心屏幕坐标(
+          (包围盒.最小x + 包围盒.最大x) / 2,
+          (包围盒.最小y + 包围盒.最大y) / 2
+        );
+        画笔.fillStyle = "#f4fbff";
+        画笔.beginPath();
+        画笔.moveTo(中心.x - 8, 中心.y - 4);
+        画笔.lineTo(中心.x + 8, 中心.y - 4);
+        画笔.lineTo(中心.x + 6, 中心.y + 10);
+        画笔.lineTo(中心.x - 6, 中心.y + 10);
+        画笔.closePath();
+        画笔.fill();
+        画笔.fillStyle = "#8fd3ff";
+        画笔.fillRect(中心.x - 5, 中心.y - 1, 10, 8);
+      }
+    }
+
+    function 绘制扩建虚线框() {
+      if (本局状态.操作模式 !== "扩建") return;
+      const 半边 = 游戏配置.格子边长 / 2 - 2;
+      画笔.setLineDash([6, 5]);
+      画笔.strokeStyle = "#7dffb1";
+      画笔.lineWidth = 2;
+      收集合法扩建空位().forEach(function (空位) {
+        const 中心 = 格子中心屏幕坐标(空位.格子x, 空位.格子y);
+        画笔.strokeRect(中心.x - 半边, 中心.y - 半边, 半边 * 2, 半边 * 2);
+      });
+      画笔.setLineDash([]);
+    }
+
+    function 绘制漂流物() {
+      本局状态.漂流物列表.forEach(function (资源) {
+        const 半边 = 游戏配置.资源边长 / 2;
+        画笔.fillStyle = 资源.类型 === "木材" ? "#8a5a32" : "#c5ced6";
+        画笔.fillRect(资源.x - 半边, 资源.y - 半边, 游戏配置.资源边长, 游戏配置.资源边长);
+        画笔.strokeStyle = "rgba(0,0,0,0.35)";
+        画笔.strokeRect(资源.x - 半边, 资源.y - 半边, 游戏配置.资源边长, 游戏配置.资源边长);
+      });
+    }
+
+    function 绘制玩家与钩索() {
+      const 玩家 = 本局状态.玩家;
+      if (本局状态.已建长矛) {
+        画笔.beginPath();
+        画笔.arc(玩家.像素x, 玩家.像素y, 游戏配置.长矛防御半径, 0, Math.PI * 2);
+        画笔.fillStyle = "rgba(255,255,255,0.10)";
+        画笔.fill();
+        画笔.strokeStyle = "rgba(255,255,255,0.55)";
+        画笔.lineWidth = 2;
+        画笔.stroke();
+      }
+
+      if (本局状态.钩索.激活) {
+        画笔.strokeStyle = "#e2b84a";
+        画笔.lineWidth = 3;
+        画笔.beginPath();
+        画笔.moveTo(玩家.像素x, 玩家.像素y);
+        画笔.lineTo(本局状态.钩索.钩头x, 本局状态.钩索.钩头y);
+        画笔.stroke();
+        画笔.fillStyle = "#ffd76a";
+        画笔.beginPath();
+        画笔.arc(本局状态.钩索.钩头x, 本局状态.钩索.钩头y, 5, 0, Math.PI * 2);
+        画笔.fill();
+      }
+
+      画笔.fillStyle = 玩家.正在修复 ? "#ffe08a" : "#ffffff";
+      画笔.beginPath();
+      画笔.arc(玩家.像素x, 玩家.像素y, 9, 0, Math.PI * 2);
+      画笔.fill();
+      画笔.strokeStyle = "rgba(0,0,0,0.35)";
+      画笔.stroke();
+    }
+
+    function 绘制鲨鱼() {
+      const 鲨鱼 = 本局状态.鲨鱼;
+      if (鲨鱼.状态 === "等待") return;
+      const 边 = 游戏配置.鲨鱼体型;
+      画笔.fillStyle = "#d62828";
+      画笔.fillRect(鲨鱼.像素x - 边 / 2, 鲨鱼.像素y - 边 / 2, 边, 边);
+      画笔.strokeStyle = "#7a1010";
+      画笔.strokeRect(鲨鱼.像素x - 边 / 2, 鲨鱼.像素y - 边 / 2, 边, 边);
+      if (鲨鱼.状态 === "撕咬") {
+        画笔.fillStyle = "rgba(255,80,80,0.28)";
+        画笔.beginPath();
+        画笔.arc(鲨鱼.像素x, 鲨鱼.像素y, 26 + Math.sin(本局状态.生存秒数 * 12) * 4, 0, Math.PI * 2);
+        画笔.fill();
+      }
+    }
+
+    function 绘制漂浮文字() {
+      本局状态.漂浮文字列表.forEach(function (文字) {
+        画笔.globalAlpha = Math.max(0, 文字.剩余 / 0.9);
+        画笔.fillStyle = 文字.颜色;
+        画笔.font = "bold 13px sans-serif";
+        画笔.textAlign = "center";
+        画笔.fillText(文字.文本, 文字.x, 文字.y);
+        画笔.globalAlpha = 1;
+      });
+    }
+
+    function 绘制场景() {
+      绘制波浪(本局状态.生存秒数);
+      绘制木筏();
+      绘制扩建虚线框();
+      绘制漂流物();
+      绘制鲨鱼();
+      绘制玩家与钩索();
+      绘制漂浮文字();
+      if (本局状态.玩家.正在修复) {
+        画笔.fillStyle = "rgba(0,0,0,0.35)";
+        画笔.fillRect(画面宽度 / 2 - 54, 18, 108, 10);
+        const 比例 = 1 - 本局状态.玩家.修复剩余秒 / 游戏配置.修复锁定秒;
+        画笔.fillStyle = "#9dffc2";
+        画笔.fillRect(画面宽度 / 2 - 54, 18, 108 * 比例, 10);
+      }
+    }
+
+    function 刷新界面按钮() {
+      const 僵直 = 玩家是否僵直();
+      const 移动中 = 本局状态.玩家.正在移动;
+      const 正常 = 本局状态.操作模式 === "正常";
+      const 可操作 = 本局状态.进行中 && !僵直 && !移动中;
+
+      界面节点.扩建按钮.disabled = !(可操作 && 资源是否足够(游戏配置.扩建消耗));
+      界面节点.净水器按钮.disabled = !(可操作 && 正常 && !本局状态.已建净水器 && 资源是否足够(游戏配置.净水器消耗));
+      界面节点.长矛按钮.disabled = !(可操作 && 正常 && !本局状态.已建长矛 && 资源是否足够(游戏配置.长矛消耗));
+      const 有受损 = 本局状态.木板列表.some(function (木板) {
+        return 木板.生命 < 游戏配置.木板最大生命;
+      });
+      界面节点.修复按钮.disabled = !(可操作 && 资源是否足够(游戏配置.修复消耗) && 有受损);
+      界面节点.取消按钮.hidden = !(本局状态.操作模式 === "扩建" || 本局状态.操作模式 === "修复");
+      界面节点.扩建按钮.classList.toggle("mode-on", 本局状态.操作模式 === "扩建");
+      界面节点.修复按钮.classList.toggle("mode-on", 本局状态.操作模式 === "修复");
+      界面节点.净水器按钮.textContent = 本局状态.已建净水器 ? "净水器已建成" : "简易净水器";
+      if (!本局状态.已建净水器) {
+        界面节点.净水器按钮.innerHTML = "简易净水器<span class=\"cost\">木材3 · 塑料1</span>";
+      }
+      界面节点.长矛按钮.innerHTML = 本局状态.已建长矛
+        ? "长矛已装备<span class=\"cost\">自动驱离防卫圈内鲨鱼</span>"
+        : "防卫长矛<span class=\"cost\">木材4 · 塑料2</span>";
+
+      if (本局状态.操作模式 === "扩建") {
+        界面节点.提示.textContent = "点绿色虚线空位扩建 · 点取消退出";
+      } else if (本局状态.操作模式 === "修复") {
+        界面节点.提示.textContent = "点受损木板修复 · 期间无法抛钩或移动";
+      } else if (僵直 && 本局状态.钩索.激活) {
+        界面节点.提示.textContent = "抛钩僵直中：无法移动、建造或再抛钩";
+      } else if (本局状态.玩家.正在修复) {
+        界面节点.提示.textContent = "修复中：无法抛钩或移动";
+      } else {
+        界面节点.提示.textContent = "点木板移动 · 点海面抛钩 · 预判漂流物提前量";
+      }
+    }
+
+    function 刷新界面() {
+      界面节点.木材.textContent = String(本局状态.木材);
+      界面节点.塑料.textContent = String(本局状态.塑料);
+      界面节点.饱食.textContent = String(Math.ceil(本局状态.饱食度));
+      界面节点.水分.textContent = String(Math.ceil(本局状态.水分));
+      界面节点.时间.textContent = 格式化时间(本局状态.生存秒数);
+      界面节点.饱食条.style.width = Math.max(0, 本局状态.饱食度) + "%";
+      界面节点.水分条.style.width = Math.max(0, 本局状态.水分) + "%";
+
+      const 饱食危险 = 本局状态.饱食度 < 30;
+      const 水分危险 = 本局状态.水分 < 30;
+      界面节点.饱食.classList.toggle("warn", 饱食危险);
+      界面节点.水分.classList.toggle("warn", 水分危险);
+      界面节点.饱食条.classList.toggle("danger", 饱食危险);
+      界面节点.水分条.classList.toggle("danger", 水分危险);
+
+      const 提示 = [];
+      if (本局状态.饱食度 < 15) 提示.push("饱食度极低");
+      if (本局状态.水分 < 15) 提示.push("水分极低");
+      界面节点.危险提示.textContent = 提示.join(" · ");
+
+      界面节点.警告层.style.opacity = 本局状态.警告剩余 > 0 ? String(Math.min(1, 本局状态.警告剩余 / 0.25)) : "0";
+      刷新界面按钮();
+      绘制场景();
+    }
+
+    function 主循环(时间戳) {
+      if (!上一帧时间戳) 上一帧时间戳 = 时间戳;
+      let 间隔秒 = (时间戳 - 上一帧时间戳) / 1000;
+      上一帧时间戳 = 时间戳;
+      if (间隔秒 > 0.05) 间隔秒 = 0.05;
+      更新一帧(间隔秒);
+      requestAnimationFrame(主循环);
+    }
+
+    function 绑定输入() {
+      画布.addEventListener("pointerdown", function (事件) {
+        事件.preventDefault();
+        const 矩形 = 画布.getBoundingClientRect();
+        处理画布点击(事件.clientX - 矩形.left, 事件.clientY - 矩形.top);
+      }, { passive: false });
+
+      界面节点.扩建按钮.addEventListener("click", 进入扩建模式);
+      界面节点.净水器按钮.addEventListener("click", 建造净水器);
+      界面节点.长矛按钮.addEventListener("click", 建造长矛);
+      界面节点.修复按钮.addEventListener("click", 进入修复模式);
+      界面节点.取消按钮.addEventListener("click", function () {
+        本局状态.操作模式 = "正常";
+      });
+      界面节点.重开按钮.addEventListener("click", 重置本局);
+
+      window.addEventListener("resize", 调整画布尺寸);
+      window.addEventListener("orientationchange", function () {
+        setTimeout(调整画布尺寸, 80);
+      });
+    }
+
+    function 禁止原生干扰() {
+      const 拦截 = function (事件) {
+        事件.preventDefault();
+      };
+      document.addEventListener("gesturestart", 拦截, { passive: false });
+      document.addEventListener("gesturechange", 拦截, { passive: false });
+      document.addEventListener("gestureend", 拦截, { passive: false });
+      document.addEventListener("contextmenu", 拦截);
+      document.addEventListener("dblclick", 拦截);
+      document.addEventListener("touchmove", 拦截, { passive: false });
+    }
+
+    function 启动游戏() {
+      画布 = document.getElementById("game-canvas");
+      画笔 = 画布.getContext("2d");
+      界面节点.木材 = document.getElementById("wood-value");
+      界面节点.塑料 = document.getElementById("plastic-value");
+      界面节点.饱食 = document.getElementById("hunger-value");
+      界面节点.水分 = document.getElementById("thirst-value");
+      界面节点.时间 = document.getElementById("time-value");
+      界面节点.饱食条 = document.getElementById("hunger-fill");
+      界面节点.水分条 = document.getElementById("thirst-fill");
+      界面节点.危险提示 = document.getElementById("danger-hint");
+      界面节点.提示 = document.getElementById("hint-line");
+      界面节点.扩建按钮 = document.getElementById("btn-expand");
+      界面节点.净水器按钮 = document.getElementById("btn-purifier");
+      界面节点.长矛按钮 = document.getElementById("btn-spear");
+      界面节点.修复按钮 = document.getElementById("btn-repair");
+      界面节点.取消按钮 = document.getElementById("btn-cancel");
+      界面节点.结束层 = document.getElementById("game-over");
+      界面节点.结束原因 = document.getElementById("over-reason");
+      界面节点.结束时间 = document.getElementById("over-time");
+      界面节点.结束最高 = document.getElementById("over-best");
+      界面节点.结束纪录 = document.getElementById("over-record");
+      界面节点.重开按钮 = document.getElementById("restart-button");
+      界面节点.警告层 = document.getElementById("shark-warning");
+
+      禁止原生干扰();
+      本局状态 = 创建本局状态();
+      调整画布尺寸();
+      同步玩家像素到当前格();
+      绑定输入();
+      requestAnimationFrame(主循环);
+    }
+
+    window.addEventListener("load", 启动游戏);
+  </script>
+</body>
+</html>
